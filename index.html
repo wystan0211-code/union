@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1736F5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Union">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico">
+  <title>Union</title>
+  <style>
+    :root {
+      --blue: #1736F5;
+      --yellow: #ffc709;
+      --grey: #d9d9d9;
+      --bg: #010418;
+      --surface: #0a1240;
+      --surface2: #0f1a5e;
+      --text: #ffffff;
+      --text-dim: #8899cc;
+      --nav-h: 72px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── LOADING SCREEN ────────────────────────────── */
+    #loader {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 32px;
+      transition: opacity 0.6s ease;
+    }
+    #loader.fade-out { opacity: 0; pointer-events: none; }
+
+    .loader-logo {
+      width: 140px; height: 140px;
+      position: relative;
+    }
+
+    /* SVG U animation container */
+    .union-svg {
+      width: 100%; height: 100%;
+      overflow: visible;
+    }
+
+    /* Rounded square background */
+    .logo-bg {
+      rx: 32; ry: 32;
+      fill: white;
+    }
+
+    /* The U strokes */
+    .u-stroke {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .u-stroke-left {
+      stroke: var(--blue);
+      stroke-width: 20;
+    }
+    .u-stroke-right {
+      stroke: var(--blue);
+      stroke-width: 20;
+    }
+
+    /* Animated fluid shimmer overlay on the U */
+    .u-fluid {
+      mix-blend-mode: screen;
+    }
+
+    .loader-name {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0.3em;
+      color: white;
+      text-transform: uppercase;
+    }
+
+    .loader-bar-wrap {
+      width: 180px; height: 3px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .loader-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue), var(--yellow));
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    /* ── APP SHELL ─────────────────────────────────── */
+    #app {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #app.visible { opacity: 1; }
+
+    /* Main content area (above nav) */
+    #main-area {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── HOME SCREEN ───────────────────────────────── */
+    #home-screen {
+      position: absolute; inset: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    #home-screen::-webkit-scrollbar { display: none; }
+
+    .home-header {
+      padding: 20px 20px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .home-greeting {
+      font-size: 13px;
+      color: var(--text-dim);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+    .home-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: white;
+      letter-spacing: 0.08em;
+    }
+    .home-badge {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 2px solid var(--blue);
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Announcement banner (Firebase-driven) */
+    #announcement-banner {
+      margin: 4px 16px 0;
+      background: linear-gradient(135deg, var(--blue) 0%, #0f2ab8 100%);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    #announcement-banner.visible { display: flex; }
+    .ann-icon {
+      width: 32px; height: 32px; flex-shrink: 0;
+      background: rgba(255,255,255,0.15);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ann-text { flex: 1; }
+    .ann-title { font-size: 12px; font-weight: 700; color: var(--yellow); margin-bottom: 2px; }
+    .ann-body { font-size: 11px; color: rgba(255,255,255,0.85); line-height: 1.4; }
+
+    /* Section label */
+    .section-label {
+      padding: 20px 20px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    /* 2×3 Game Grid */
+    .game-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 0 16px;
+      padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+    }
+
+    .game-card {
+      aspect-ratio: 1 / 1.1;
+      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid rgba(23,54,245,0.3);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      -webkit-user-select: none; user-select: none;
+    }
+    .game-card:active {
+      transform: scale(0.95);
+      box-shadow: 0 0 24px rgba(23,54,245,0.4);
+    }
+
+    /* Accent stripe at top of each card */
+    .game-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 20px 20px 0 0;
+    }
+
+    .game-card[data-game="block-blast"]::before { background: var(--blue); }
+    .game-card[data-game="2048"]::before { background: var(--yellow); }
+    .game-card[data-game="snake"]::before { background: #2ed573; }
+    .game-card[data-game="pacman"]::before { background: var(--yellow); }
+    .game-card[data-game="minesweeper"]::before { background: #ff4757; }
+    .game-card[data-game="sugar-blast"]::before { background: #9b5de5; }
+
+    .game-card-icon {
+      width: 64px; height: 64px;
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+    }
+    .game-card[data-game="block-blast"] .game-card-icon { background: rgba(23,54,245,0.2); }
+    .game-card[data-game="2048"] .game-card-icon { background: rgba(255,199,9,0.2); }
+    .game-card[data-game="snake"] .game-card-icon { background: rgba(46,213,115,0.2); }
+    .game-card[data-game="pacman"] .game-card-icon { background: rgba(255,199,9,0.2); }
+    .game-card[data-game="minesweeper"] .game-card-icon { background: rgba(255,71,87,0.2); }
+    .game-card[data-game="sugar-blast"] .game-card-icon { background: rgba(155,93,229,0.2); }
+
+    .game-card-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: white;
+      text-align: center;
+      line-height: 1.3;
+      padding: 0 8px;
+    }
+    .game-card-score {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    /* Progress pip */
+    .game-card-progress {
+      position: absolute;
+      bottom: 10px; right: 10px;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--grey);
+      opacity: 0.4;
+    }
+    .game-card-progress.has-progress { background: #2ed573; opacity: 1; }
+
+    /* Animated background gradient per card */
+    .game-card-bg {
+      position: absolute; inset: 0;
+      opacity: 0.06;
+      background: radial-gradient(circle at 80% 20%, currentColor 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .game-card[data-game="block-blast"] .game-card-bg { color: var(--blue); }
+    .game-card[data-game="2048"] .game-card-bg { color: var(--yellow); }
+    .game-card[data-game="snake"] .game-card-bg { color: #2ed573; }
+    .game-card[data-game="pacman"] .game-card-bg { color: var(--yellow); }
+    .game-card[data-game="minesweeper"] .game-card-bg { color: #ff4757; }
+    .game-card[data-game="sugar-blast"] .game-card-bg { color: #9b5de5; }
+
+    /* ── GAME SCREEN ───────────────────────────────── */
+    #game-screen {
+      position: absolute; inset: 0;
+      display: none;
+      flex-direction: column;
+    }
+    #game-screen.active { display: flex; }
+
+    .game-topbar {
+      height: 52px;
+      background: var(--bg);
+      display: flex; align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      border-bottom: 1px solid rgba(23,54,245,0.2);
+      flex-shrink: 0;
+    }
+    .topbar-title {
+      flex: 1;
+      font-size: 16px; font-weight: 700;
+      color: white;
+    }
+    .topbar-btn {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    #game-iframe {
+      flex: 1;
+      border: none;
+      width: 100%;
+      background: var(--bg);
+    }
+
+    /* ── BOTTOM NAV ────────────────────────────────── */
+    #bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: calc(var(--nav-h) + var(--safe-bottom));
+      padding-bottom: var(--safe-bottom);
+      background: rgba(1, 4, 24, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(23,54,245,0.25);
+      display: flex; align-items: flex-start;
+      padding-top: 8px;
+      z-index: 100;
+    }
+
+    .nav-btn {
+      flex: 1;
+      height: 56px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 4px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-dim);
+      transition: color 0.2s;
+      -webkit-user-select: none; user-select: none;
+      position: relative;
+    }
+    .nav-btn:active { opacity: 0.7; }
+    .nav-btn.active { color: var(--blue); }
+    .nav-btn svg { display: block; }
+    .nav-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    /* Center home button special style */
+    .nav-btn.nav-home {
+      color: white;
+    }
+    .nav-home-icon {
+      width: 48px; height: 48px;
+      background: var(--blue);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(23,54,245,0.5);
+      margin-top: -16px;
+    }
+    .nav-home.active .nav-home-icon {
+      box-shadow: 0 4px 24px rgba(23,54,245,0.8);
+    }
+
+    /* Notification badge */
+    .notif-badge {
+      position: absolute;
+      top: 6px; right: calc(50% - 14px);
+      width: 8px; height: 8px;
+      background: #ff4757;
+      border-radius: 50%;
+      border: 2px solid var(--bg);
+      display: none;
+    }
+    .notif-badge.show { display: block; }
+
+    /* ── USER MODAL ────────────────────────────────── */
+    #user-modal {
+      position: fixed; inset: 0; z-index: 200;
+      display: none;
+      align-items: flex-end;
+    }
+    #user-modal.open { display: flex; }
+    .modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.6);
+    }
+    .modal-sheet {
+      position: relative; z-index: 1;
+      width: 100%;
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      padding: 24px 24px calc(var(--nav-h) + var(--safe-bottom) + 16px);
+      border-top: 1px solid rgba(23,54,245,0.3);
+    }
+    .sheet-handle {
+      width: 40px; height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+      margin: 0 auto 24px;
+    }
+    .user-avatar-lg {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 3px solid var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 12px;
+      font-size: 28px;
+    }
+    .user-name {
+      text-align: center;
+      font-size: 20px; font-weight: 700;
+      color: white;
+      margin-bottom: 4px;
+    }
+    .user-email {
+      text-align: center;
+      font-size: 13px; color: var(--text-dim);
+      margin-bottom: 24px;
+    }
+    .sheet-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+    }
+    .sheet-row:last-child { border-bottom: none; }
+    .sheet-row-icon {
+      width: 38px; height: 38px;
+      background: var(--surface2);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--blue);
+    }
+    .sheet-row-label { font-size: 15px; font-weight: 500; color: white; flex: 1; }
+    .sheet-row-chevron { color: var(--text-dim); }
+
+    /* ── NOTIFICATION PANEL ────────────────────────── */
+    #notif-panel {
+      position: fixed; inset: 0; z-index: 200;
+      display: none; align-items: flex-end;
+    }
+    #notif-panel.open { display: flex; }
+    .notif-sheet {
+      position: relative; z-index: 1;
+      width: 100%;
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      padding: 24px 20px calc(var(--nav-h) + var(--safe-bottom) + 16px);
+      border-top: 1px solid rgba(23,54,245,0.3);
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    .notif-title {
+      font-size: 20px; font-weight: 800;
+      margin-bottom: 20px;
+    }
+    .notif-item {
+      display: flex; gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      align-items: flex-start;
+    }
+    .notif-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--blue);
+      margin-top: 6px; flex-shrink: 0;
+    }
+    .notif-dot.read { background: var(--text-dim); }
+    .notif-content { flex: 1; }
+    .notif-msg { font-size: 14px; color: white; line-height: 1.4; margin-bottom: 4px; }
+    .notif-time { font-size: 11px; color: var(--text-dim); }
+    .notif-empty { text-align: center; padding: 40px 0; color: var(--text-dim); font-size: 14px; }
+
+    /* ── FRIENDS PANEL ─────────────────────────────── */
+    #friends-panel {
+      position: fixed; inset: 0; z-index: 200;
+      display: none; align-items: flex-end;
+    }
+    #friends-panel.open { display: flex; }
+    .friends-sheet {
+      position: relative; z-index: 1;
+      width: 100%;
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      padding: 24px 20px calc(var(--nav-h) + var(--safe-bottom) + 16px);
+      border-top: 1px solid rgba(23,54,245,0.3);
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    .friends-title {
+      font-size: 20px; font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .friends-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; }
+    .friend-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .friend-avatar {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 16px;
+      border: 2px solid rgba(23,54,245,0.4);
+      flex-shrink: 0;
+    }
+    .friend-info { flex: 1; }
+    .friend-name { font-size: 14px; font-weight: 600; color: white; }
+    .friend-score { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .friend-online {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #2ed573;
+    }
+    .friends-empty { text-align: center; padding: 40px 0; color: var(--text-dim); font-size: 14px; }
+
+    /* ── LOADING SHIMMER ───────────────────────────── */
+    @keyframes shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    .shimmer {
+      background: linear-gradient(90deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.08) 50%,
+        rgba(255,255,255,0) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 2s infinite;
+    }
+
+    /* ── FLUID ANIMATION KEYFRAMES ─────────────────── */
+    @keyframes flow-blue {
+      0%   { stop-color: #1736F5; }
+      33%  { stop-color: #4d6fff; }
+      66%  { stop-color: #ffffff; }
+      100% { stop-color: #1736F5; }
+    }
+    @keyframes flow-white {
+      0%   { stop-color: #ffffff; }
+      33%  { stop-color: #1736F5; }
+      66%  { stop-color: #4d6fff; }
+      100% { stop-color: #ffffff; }
+    }
+    @keyframes flow-mid {
+      0%   { stop-color: #4d6fff; }
+      33%  { stop-color: #ffffff; }
+      66%  { stop-color: #1736F5; }
+      100% { stop-color: #4d6fff; }
+    }
+    @keyframes pulse-glow {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(23,54,245,0.6)); }
+      50% { filter: drop-shadow(0 0 20px rgba(23,54,245,0.95)); }
+    }
+    @keyframes logo-in {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .loader-logo { animation: logo-in 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    .loader-logo svg { animation: pulse-glow 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     LOADING SCREEN
+════════════════════════════════════════════════ -->
+<div id="loader">
+  <div class="loader-logo">
+    <svg class="union-svg" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Animated gradient for U strokes -->
+        <linearGradient id="flowGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop id="g1s1" offset="0%">
+            <animate attributeName="stop-color"
+              values="#1736F5;#4d6fff;#ffffff;#4d6fff;#1736F5"
+              dur="2s" repeatCount="indefinite"/>
+          </stop>
+          <stop id="g1s2" offset="50%">
+            <animate attributeName="stop-color"
+              values="#4d6fff;#ffffff;#1736F5;#ffffff;#4d6fff"
+              dur="2s" repeatCount="indefinite"/>
+          </stop>
+          <stop id="g1s3" offset="100%">
+            <animate attributeName="stop-color"
+              values="#ffffff;#1736F5;#4d6fff;#1736F5;#ffffff"
+              dur="2s" repeatCount="indefinite"/>
+          </stop>
+        </linearGradient>
+
+        <linearGradient id="flowGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop id="g2s1" offset="0%">
+            <animate attributeName="stop-color"
+              values="#ffffff;#1736F5;#4d6fff;#1736F5;#ffffff"
+              dur="2s" repeatCount="indefinite"/>
+          </stop>
+          <stop id="g2s2" offset="50%">
+            <animate attributeName="stop-color"
+              values="#1736F5;#4d6fff;#ffffff;#4d6fff;#1736F5"
+              dur="2s" repeatCount="indefinite"/>
+          </stop>
+          <stop id="g2s3" offset="100%">
+            <animate attributeName="stop-color"
+              values="#4d6fff;#ffffff;#1736F5;#ffffff;#4d6fff"
+              dur="2s" repeatCount="indefinite"/>
+          </stop>
+        </linearGradient>
+
+        <!-- Clip to rounded square -->
+        <clipPath id="roundedClip">
+          <rect x="0" y="0" width="140" height="140" rx="32" ry="32"/>
+        </clipPath>
+      </defs>
+
+      <!-- White rounded square background -->
+      <rect x="0" y="0" width="140" height="140" rx="32" ry="32" fill="white"/>
+
+      <!-- U shape: left stroke (thick rounded path going down and curving at bottom) -->
+      <!-- Left vertical bar of U -->
+      <rect x="22" y="22" width="34" height="70" rx="17" ry="17" fill="url(#flowGrad1)" clip-path="url(#roundedClip)"/>
+      <!-- Right vertical bar of U -->
+      <rect x="84" y="22" width="34" height="70" rx="17" ry="17" fill="url(#flowGrad2)" clip-path="url(#roundedClip)"/>
+      <!-- Bottom curve of U (semicircle) -->
+      <path d="M 22 75 Q 22 118 70 118 Q 118 118 118 75" fill="none"
+            stroke="url(#flowGrad1)" stroke-width="34"
+            stroke-linecap="round" clip-path="url(#roundedClip)"/>
+
+      <!-- Animated shimmer wave overlay -->
+      <rect x="0" y="0" width="140" height="140" rx="32" ry="32" fill="none"
+            clip-path="url(#roundedClip)">
+        <animate attributeName="opacity" values="0;0.15;0" dur="1.5s" repeatCount="indefinite"/>
+      </rect>
+    </svg>
+  </div>
+
+  <div class="loader-name">UNION</div>
+
+  <div class="loader-bar-wrap">
+    <div class="loader-bar" id="loader-bar"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     APP SHELL
+════════════════════════════════════════════════ -->
+<div id="app">
+  <!-- MAIN CONTENT -->
+  <div id="main-area">
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen">
+      <div class="home-header">
+        <div>
+          <div class="home-greeting" id="greeting-text">歡迎回來</div>
+          <div class="home-title">Union</div>
+        </div>
+        <!-- Decorative element -->
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+          <rect width="38" height="38" rx="10" fill="#0a1240"/>
+          <rect x="7" y="7" width="10" height="14" rx="5" fill="#1736F5"/>
+          <rect x="21" y="7" width="10" height="14" rx="5" fill="white"/>
+          <path d="M7 18 Q7 31 19 31 Q31 31 31 18" fill="none" stroke="#1736F5" stroke-width="10" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <!-- Firebase announcement banner -->
+      <div id="announcement-banner">
+        <div class="ann-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </div>
+        <div class="ann-text">
+          <div class="ann-title" id="ann-title">公告</div>
+          <div class="ann-body" id="ann-body"></div>
+        </div>
+      </div>
+
+      <div class="section-label">遊戲選單</div>
+
+      <!-- 2×3 Game Grid -->
+      <div class="game-grid">
+
+        <div class="game-card" data-game="block-blast" onclick="openGame('block-blast','Block Blast')">
+          <div class="game-card-bg"></div>
+          <div class="game-card-icon">
+            <!-- Block icon -->
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <rect x="2" y="2" width="14" height="14" rx="3" fill="#1736F5"/>
+              <rect x="20" y="2" width="14" height="14" rx="3" fill="#4d6fff"/>
+              <rect x="2" y="20" width="14" height="14" rx="3" fill="#4d6fff"/>
+              <rect x="20" y="20" width="14" height="14" rx="3" fill="#1736F5"/>
+            </svg>
+          </div>
+          <div class="game-card-name">Block Blast</div>
+          <div class="game-card-score" id="score-block-blast">最高：0</div>
+          <div class="game-card-progress" id="prog-block-blast"></div>
+        </div>
+
+        <div class="game-card" data-game="2048" onclick="openGame('2048','2048')">
+          <div class="game-card-bg"></div>
+          <div class="game-card-icon">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <rect x="1" y="1" width="34" height="34" rx="6" fill="rgba(255,199,9,0.3)"/>
+              <text x="18" y="25" text-anchor="middle" font-size="16" font-weight="800" fill="#ffc709">2048</text>
+            </svg>
+          </div>
+          <div class="game-card-name">2048</div>
+          <div class="game-card-score" id="score-2048">最高：0</div>
+          <div class="game-card-progress" id="prog-2048"></div>
+        </div>
+
+        <div class="game-card" data-game="snake" onclick="openGame('snake','Snake')">
+          <div class="game-card-bg"></div>
+          <div class="game-card-icon">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <path d="M6 6 H18 Q24 6 24 12 V18 Q24 24 18 24 H12 Q6 24 6 30 H30" stroke="#2ed573" stroke-width="5" stroke-linecap="round" fill="none"/>
+              <circle cx="30" cy="6" r="4" fill="#2ed573"/>
+            </svg>
+          </div>
+          <div class="game-card-name">Snake</div>
+          <div class="game-card-score" id="score-snake">最高：0</div>
+          <div class="game-card-progress" id="prog-snake"></div>
+        </div>
+
+        <div class="game-card" data-game="pacman" onclick="openGame('pacman','Pac-Man')">
+          <div class="game-card-bg"></div>
+          <div class="game-card-icon">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <path d="M18 18 L32 10 A16 16 0 1 0 32 26 Z" fill="#ffc709"/>
+              <circle cx="14" cy="10" r="2.5" fill="#010418"/>
+            </svg>
+          </div>
+          <div class="game-card-name">Pac-Man</div>
+          <div class="game-card-score" id="score-pacman">最高：0</div>
+          <div class="game-card-progress" id="prog-pacman"></div>
+        </div>
+
+        <div class="game-card" data-game="minesweeper" onclick="openGame('minesweeper','Minesweeper')">
+          <div class="game-card-bg"></div>
+          <div class="game-card-icon">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <circle cx="18" cy="18" r="12" fill="#ff4757"/>
+              <line x1="18" y1="4" x2="18" y2="8" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="18" y1="28" x2="18" y2="32" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="4" y1="18" x2="8" y2="18" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="28" y1="18" x2="32" y2="18" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="8" y1="8" x2="11" y2="11" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="25" y1="25" x2="28" y2="28" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="28" y1="8" x2="25" y2="11" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="11" y1="25" x2="8" y2="28" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="18" cy="18" r="5" fill="white" opacity="0.4"/>
+            </svg>
+          </div>
+          <div class="game-card-name">Minesweeper</div>
+          <div class="game-card-score" id="score-minesweeper">最高：0</div>
+          <div class="game-card-progress" id="prog-minesweeper"></div>
+        </div>
+
+        <div class="game-card" data-game="sugar-blast" onclick="openGame('sugar-blast','Sugar Blast')">
+          <div class="game-card-bg"></div>
+          <div class="game-card-icon">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <circle cx="10" cy="14" r="6" fill="#9b5de5"/>
+              <circle cx="26" cy="14" r="6" fill="#ff4757"/>
+              <circle cx="18" cy="26" r="6" fill="#ffc709"/>
+              <circle cx="10" cy="14" r="3" fill="white" opacity="0.3"/>
+              <circle cx="26" cy="14" r="3" fill="white" opacity="0.3"/>
+              <circle cx="18" cy="26" r="3" fill="white" opacity="0.3"/>
+            </svg>
+          </div>
+          <div class="game-card-name">Sugar Blast</div>
+          <div class="game-card-score" id="score-sugar-blast">關卡：0</div>
+          <div class="game-card-progress" id="prog-sugar-blast"></div>
+        </div>
+
+      </div>
+    </div><!-- /home-screen -->
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen">
+      <div class="game-topbar">
+        <button class="topbar-btn" onclick="closeGame()" aria-label="返回">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <div class="topbar-title" id="game-title">Game</div>
+      </div>
+      <iframe id="game-iframe" src="" title="Game" allow="autoplay"></iframe>
+    </div>
+
+  </div><!-- /main-area -->
+
+  <!-- BOTTOM NAV -->
+  <nav id="bottom-nav">
+    <!-- Back -->
+    <button class="nav-btn" id="nav-back" onclick="navBack()" aria-label="返回上頁">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      <span class="nav-label">返回</span>
+    </button>
+
+    <!-- Bell -->
+    <button class="nav-btn" id="nav-bell" onclick="openNotifications()" aria-label="通知">
+      <div class="notif-badge" id="notif-badge"></div>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="nav-label">通知</span>
+    </button>
+
+    <!-- Home (center) -->
+    <button class="nav-btn nav-home active" id="nav-home" onclick="goHome()" aria-label="主頁">
+      <div class="nav-home-icon">
+        <!-- Union U icon in white -->
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect x="0" y="0" width="28" height="28" rx="7" fill="white" opacity="0"/>
+          <rect x="3" y="3" width="7" height="13" rx="3.5" fill="white"/>
+          <rect x="18" y="3" width="7" height="13" rx="3.5" fill="white"/>
+          <path d="M3 13 Q3 25 14 25 Q25 25 25 13" fill="none" stroke="white" stroke-width="7" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="nav-label" style="margin-top:4px">主頁</span>
+    </button>
+
+    <!-- Friends -->
+    <button class="nav-btn" id="nav-friends" onclick="openFriends()" aria-label="好友">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Two overlapping person silhouettes -->
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M3 21v-1a7 7 0 0 1 7-7"/>
+        <circle cx="17" cy="9" r="3" opacity="0.7"/>
+        <path d="M13 21v-1a5 5 0 0 1 8 0v1" opacity="0.7"/>
+      </svg>
+      <span class="nav-label">好友</span>
+    </button>
+
+    <!-- User -->
+    <button class="nav-btn" id="nav-user" onclick="openUser()" aria-label="帳戶">
+      <div id="nav-avatar" style="width:26px;height:26px;border-radius:50%;background:var(--surface2);border:2px solid var(--text-dim);display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <span class="nav-label">帳戶</span>
+    </button>
+  </nav>
+</div><!-- /app -->
+
+<!-- USER MODAL -->
+<div id="user-modal">
+  <div class="modal-backdrop" onclick="closeUser()"></div>
+  <div class="modal-sheet">
+    <div class="sheet-handle"></div>
+    <div class="user-avatar-lg" id="modal-avatar">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8899cc" stroke-width="2" stroke-linecap="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <div class="user-name" id="modal-name">訪客</div>
+    <div class="user-email" id="modal-email">尚未登入</div>
+    <div class="sheet-row" onclick="handleLogin()">
+      <div class="sheet-row-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          <polyline points="10 17 15 12 10 7"/>
+          <line x1="15" y1="12" x2="3" y2="12"/>
+        </svg>
+      </div>
+      <span class="sheet-row-label" id="login-label">登入 / 註冊</span>
+      <svg class="sheet-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+    <div class="sheet-row" onclick="openPolicy()">
+      <div class="sheet-row-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      </div>
+      <span class="sheet-row-label">使用者政策</span>
+      <svg class="sheet-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+    <div class="sheet-row" onclick="clearData()">
+      <div class="sheet-row-icon" style="color:#ff4757">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+      </div>
+      <span class="sheet-row-label" style="color:#ff4757">清除遊戲進度</span>
+      <svg class="sheet-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION PANEL -->
+<div id="notif-panel">
+  <div class="modal-backdrop" onclick="closeNotifications()"></div>
+  <div class="notif-sheet">
+    <div class="sheet-handle"></div>
+    <div class="notif-title">通知</div>
+    <div id="notif-list"></div>
+  </div>
+</div>
+
+<!-- FRIENDS PANEL -->
+<div id="friends-panel">
+  <div class="modal-backdrop" onclick="closeFriends()"></div>
+  <div class="friends-sheet">
+    <div class="sheet-handle"></div>
+    <div class="friends-title">好友</div>
+    <div class="friends-sub">與朋友比較分數</div>
+    <div id="friends-list"></div>
+  </div>
+</div>
+
+<!-- POLICY MODAL -->
+<div id="policy-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.8);align-items:flex-end;">
+  <div style="position:relative;z-index:1;width:100%;background:var(--surface);border-radius:24px 24px 0 0;padding:24px 20px 40px;max-height:80vh;overflow-y:auto;border-top:1px solid rgba(23,54,245,0.3);">
+    <div class="sheet-handle"></div>
+    <div style="font-size:20px;font-weight:800;margin-bottom:16px;">使用者政策</div>
+    <div id="policy-content" style="font-size:13px;color:var(--text-dim);line-height:1.8;"></div>
+    <button onclick="document.getElementById('policy-modal').style.display='none'" style="margin-top:20px;width:100%;height:48px;background:var(--blue);border:none;border-radius:12px;color:white;font-size:15px;font-weight:700;cursor:pointer;">關閉</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// FIREBASE CONFIG — replace with your project's config
+// ═══════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// Firestore REST endpoint (no SDK needed for basic reads)
+const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const GAMES = [
+  { id: 'block-blast', name: 'Block Blast',    scoreKey: 'blockBlastHigh',    file: 'games/block-blast.html' },
+  { id: '2048',        name: '2048',            scoreKey: '2048High',          file: 'games/2048.html'        },
+  { id: 'snake',       name: 'Snake',           scoreKey: 'snakeHigh',         file: 'games/snake.html'       },
+  { id: 'pacman',      name: 'Pac-Man',         scoreKey: 'pacmanHigh',        file: 'games/pacman.html'      },
+  { id: 'minesweeper', name: 'Minesweeper',     scoreKey: 'minesweeperWins',   file: 'games/minesweeper.html' },
+  { id: 'sugar-blast', name: 'Sugar Blast',     scoreKey: 'sugarBlastLevel',   file: 'games/sugar-blast.html' },
+];
+
+let currentGame = null;
+let navHistory = ['home'];
+
+// ═══════════════════════════════════════════════
+// LOADING SEQUENCE
+// ═══════════════════════════════════════════════
+function startLoader() {
+  const bar = document.getElementById('loader-bar');
+  let progress = 0;
+
+  const tick = setInterval(() => {
+    progress += Math.random() * 12 + 3;
+    if (progress > 90) progress = 90;
+    bar.style.width = progress + '%';
+  }, 120);
+
+  // After 2s minimum show app
+  setTimeout(() => {
+    clearInterval(tick);
+    bar.style.width = '100%';
+    setTimeout(() => {
+      const loader = document.getElementById('loader');
+      const app = document.getElementById('app');
+      loader.classList.add('fade-out');
+      app.classList.add('visible');
+      setTimeout(() => { loader.style.display = 'none'; }, 700);
+    }, 300);
+  }, 2200);
+}
+
+// ═══════════════════════════════════════════════
+// GREETING
+// ═══════════════════════════════════════════════
+function setGreeting() {
+  const h = new Date().getHours();
+  const text = h < 5 ? '深夜好' : h < 12 ? '早安' : h < 17 ? '午安' : h < 21 ? '晚安' : '夜深了';
+  document.getElementById('greeting-text').textContent = text;
+}
+
+// ═══════════════════════════════════════════════
+// SCORES from localStorage
+// ═══════════════════════════════════════════════
+function loadScores() {
+  GAMES.forEach(g => {
+    const val = localStorage.getItem(g.scoreKey) || '0';
+    const scoreEl = document.getElementById(`score-${g.id}`);
+    const progEl  = document.getElementById(`prog-${g.id}`);
+    if (scoreEl) {
+      if (g.id === 'sugar-blast') {
+        scoreEl.textContent = `關卡：${val}`;
+      } else if (g.id === 'minesweeper') {
+        scoreEl.textContent = `勝場：${val}`;
+      } else {
+        scoreEl.textContent = `最高：${Number(val).toLocaleString()}`;
+      }
+    }
+    if (progEl && parseInt(val) > 0) {
+      progEl.classList.add('has-progress');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function goHome() {
+  closeGame();
+  closeUser();
+  closeNotifications();
+  closeFriends();
+  setActiveNav('home');
+  if (navHistory[navHistory.length-1] !== 'home') navHistory.push('home');
+}
+
+function navBack() {
+  if (document.getElementById('game-screen').classList.contains('active')) {
+    closeGame();
+    return;
+  }
+  if (document.getElementById('user-modal').classList.contains('open')) { closeUser(); return; }
+  if (document.getElementById('notif-panel').classList.contains('open')) { closeNotifications(); return; }
+  if (document.getElementById('friends-panel').classList.contains('open')) { closeFriends(); return; }
+  // Back in history
+  if (navHistory.length > 1) {
+    navHistory.pop();
+    const prev = navHistory[navHistory.length-1];
+    if (prev === 'home') goHome();
+  }
+}
+
+function setActiveNav(which) {
+  ['nav-back','nav-bell','nav-home','nav-friends','nav-user'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active');
+  });
+  const map = { home: 'nav-home', bell: 'nav-bell', friends: 'nav-friends', user: 'nav-user' };
+  if (map[which]) document.getElementById(map[which])?.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════
+// GAME
+// ═══════════════════════════════════════════════
+function openGame(id, name) {
+  const game = GAMES.find(g => g.id === id);
+  if (!game) return;
+  currentGame = game;
+
+  document.getElementById('game-title').textContent = name;
+  document.getElementById('game-iframe').src = game.file;
+  document.getElementById('game-screen').classList.add('active');
+  document.getElementById('home-screen').style.display = 'none';
+  navHistory.push(id);
+
+  // Listen for score updates from game iframes
+  window.addEventListener('message', onGameMessage);
+}
+
+function closeGame() {
+  document.getElementById('game-screen').classList.remove('active');
+  document.getElementById('home-screen').style.display = '';
+  document.getElementById('game-iframe').src = '';
+  window.removeEventListener('message', onGameMessage);
+  currentGame = null;
+  setActiveNav('home');
+  loadScores();
+}
+
+function onGameMessage(e) {
+  // Games can post { type: 'score', key: '...', value: N } to update scores
+  if (e.data && e.data.type === 'score') {
+    localStorage.setItem(e.data.key, e.data.value);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// USER MODAL
+// ═══════════════════════════════════════════════
+function openUser() {
+  document.getElementById('user-modal').classList.add('open');
+  setActiveNav('user');
+  navHistory.push('user');
+  loadUserInfo();
+}
+function closeUser() {
+  document.getElementById('user-modal').classList.remove('open');
+}
+function loadUserInfo() {
+  const name  = localStorage.getItem('union_username') || '訪客';
+  const email = localStorage.getItem('union_email') || '尚未登入';
+  document.getElementById('modal-name').textContent = name;
+  document.getElementById('modal-email').textContent = email;
+  document.getElementById('login-label').textContent = email === '尚未登入' ? '登入 / 註冊' : '登出';
+}
+function handleLogin() {
+  const logged = localStorage.getItem('union_email');
+  if (logged) {
+    if (confirm('確定要登出嗎？')) {
+      localStorage.removeItem('union_username');
+      localStorage.removeItem('union_email');
+      loadUserInfo();
+    }
+  } else {
+    const name = prompt('請輸入您的名稱：');
+    if (!name) return;
+    localStorage.setItem('union_username', name);
+    localStorage.setItem('union_email', name + '@union.app');
+    loadUserInfo();
+  }
+}
+function clearData() {
+  if (!confirm('確定要清除所有遊戲進度嗎？此動作無法復原。')) return;
+  GAMES.forEach(g => localStorage.removeItem(g.scoreKey));
+  loadScores();
+  closeUser();
+  alert('遊戲進度已清除');
+}
+
+// ═══════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════
+const LOCAL_NOTIFS = JSON.parse(localStorage.getItem('union_notifs') || '[]');
+
+function openNotifications() {
+  document.getElementById('notif-panel').classList.add('open');
+  setActiveNav('bell');
+  renderNotifications();
+  // Mark all read
+  document.getElementById('notif-badge').classList.remove('show');
+  localStorage.removeItem('union_notif_unread');
+}
+function closeNotifications() {
+  document.getElementById('notif-panel').classList.remove('open');
+}
+function renderNotifications() {
+  const list = document.getElementById('notif-list');
+  const notifs = JSON.parse(localStorage.getItem('union_notifs_data') || '[]');
+  if (notifs.length === 0) {
+    list.innerHTML = '<div class="notif-empty">暫無通知</div>';
+    return;
+  }
+  list.innerHTML = notifs.map(n => `
+    <div class="notif-item">
+      <div class="notif-dot ${n.read ? 'read' : ''}"></div>
+      <div class="notif-content">
+        <div class="notif-msg">${n.message}</div>
+        <div class="notif-time">${n.time}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════
+// FRIENDS
+// ═══════════════════════════════════════════════
+function openFriends() {
+  document.getElementById('friends-panel').classList.add('open');
+  setActiveNav('friends');
+  renderFriends();
+}
+function closeFriends() {
+  document.getElementById('friends-panel').classList.remove('open');
+}
+function renderFriends() {
+  const list = document.getElementById('friends-list');
+  const friends = JSON.parse(localStorage.getItem('union_friends') || '[]');
+  if (friends.length === 0) {
+    list.innerHTML = `<div class="friends-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.5" stroke-linecap="round" style="display:block;margin:0 auto 12px"><circle cx="9" cy="7" r="4"/><path d="M3 21v-1a7 7 0 0 1 7-7"/><circle cx="17" cy="9" r="3" opacity="0.7"/><path d="M13 21v-1a5 5 0 0 1 8 0v1" opacity="0.7"/></svg>
+      好友功能即將推出<br><span style="font-size:12px">敬請期待</span>
+    </div>`;
+    return;
+  }
+  const colors = ['#1736F5','#ffc709','#2ed573','#ff4757','#9b5de5','#00d4ff'];
+  list.innerHTML = friends.map((f,i) => `
+    <div class="friend-item">
+      <div class="friend-avatar" style="border-color:${colors[i%colors.length]}">${f.name[0]}</div>
+      <div class="friend-info">
+        <div class="friend-name">${f.name}</div>
+        <div class="friend-score">最高分：${f.score.toLocaleString()}</div>
+      </div>
+      ${f.online ? '<div class="friend-online"></div>' : ''}
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════
+// POLICY
+// ═══════════════════════════════════════════════
+function openPolicy() {
+  closeUser();
+  const modal = document.getElementById('policy-modal');
+  const content = document.getElementById('policy-content');
+  const cached = localStorage.getItem('union_policy');
+
+  modal.style.display = 'flex';
+
+  if (cached) {
+    content.innerHTML = cached;
+    return;
+  }
+
+  // Try to fetch from Firestore
+  fetchFirestoreDoc('app_config/policy').then(data => {
+    const text = data?.text || DEFAULT_POLICY;
+    const html = text.replace(/\n/g, '<br>');
+    content.innerHTML = html;
+    localStorage.setItem('union_policy', html);
+  }).catch(() => {
+    content.innerHTML = DEFAULT_POLICY.replace(/\n/g, '<br>');
+  });
+}
+
+const DEFAULT_POLICY = `Union 使用者政策
+
+最後更新：2025年1月
+
+歡迎使用 Union！
+
+1. 資料收集
+本應用程式在您的裝置上以 localStorage 儲存遊戲進度及偏好設定，不會將個人資料傳送至任何伺服器。
+
+2. 遊戲進度
+所有遊戲分數及進度儲存於您的裝置本地端。清除瀏覽器快取將刪除所有進度。
+
+3. 隱私保護
+我們不收集、追蹤或販賣任何個人資訊。
+
+4. 聯絡我們
+如有任何問題，請透過應用程式內的意見回饋功能聯絡我們。`;
+
+// ═══════════════════════════════════════════════
+// FIREBASE / FIRESTORE (REST API, no SDK)
+// ═══════════════════════════════════════════════
+async function fetchFirestoreDoc(path) {
+  const url = `${FIRESTORE_BASE}/${path}?key=${FIREBASE_CONFIG.apiKey}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return parseFirestoreDoc(data);
+  } catch { return null; }
+}
+
+function parseFirestoreDoc(doc) {
+  if (!doc?.fields) return null;
+  const out = {};
+  for (const [k, v] of Object.entries(doc.fields)) {
+    out[k] = v.stringValue ?? v.integerValue ?? v.booleanValue ?? v.mapValue ?? null;
+  }
+  return out;
+}
+
+async function loadFirebaseContent() {
+  // Fetch announcements / policy from Firestore
+  const config = await fetchFirestoreDoc('app_config/main');
+  if (!config) return;
+
+  // Announcement
+  if (config.announcement_title && config.announcement_body) {
+    document.getElementById('ann-title').textContent = config.announcement_title;
+    document.getElementById('ann-body').textContent = config.announcement_body;
+    document.getElementById('announcement-banner').classList.add('visible');
+    // Cache
+    localStorage.setItem('union_ann_title', config.announcement_title);
+    localStorage.setItem('union_ann_body', config.announcement_body);
+  }
+
+  // Notifications
+  if (config.notification) {
+    const notifs = JSON.parse(localStorage.getItem('union_notifs_data') || '[]');
+    const newNotif = {
+      message: config.notification,
+      time: new Date().toLocaleDateString('zh-TW'),
+      read: false
+    };
+    notifs.unshift(newNotif);
+    localStorage.setItem('union_notifs_data', JSON.stringify(notifs.slice(0,20)));
+    document.getElementById('notif-badge').classList.add('show');
+  }
+
+  // Policy
+  if (config.policy_text) {
+    localStorage.setItem('union_policy', config.policy_text.replace(/\n/g,'<br>'));
+  }
+}
+
+// Load cached announcement on start
+function loadCachedAnnouncement() {
+  const t = localStorage.getItem('union_ann_title');
+  const b = localStorage.getItem('union_ann_body');
+  if (t && b) {
+    document.getElementById('ann-title').textContent = t;
+    document.getElementById('ann-body').textContent = b;
+    document.getElementById('announcement-banner').classList.add('visible');
+  }
+  // Show badge if unread notifs exist
+  const notifs = JSON.parse(localStorage.getItem('union_notifs_data') || '[]');
+  if (notifs.some(n => !n.read)) {
+    document.getElementById('notif-badge').classList.add('show');
+  }
+}
+
+// Announcement banner click
+document.getElementById('announcement-banner').addEventListener('click', openNotifications);
+
+// ═══════════════════════════════════════════════
+// SERVICE WORKER
+// ═══════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available — silently update
+            newWorker.postMessage('skipWaiting');
+          }
+        });
+      });
+    }).catch(() => {});
+  });
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+setGreeting();
+startLoader();
+loadScores();
+loadCachedAnnouncement();
+
+// Fetch Firebase content after loader
+setTimeout(() => {
+  loadFirebaseContent().catch(() => {});
+}, 2500);
+
+// Listen for score updates broadcast from game iframes
+window.addEventListener('message', e => {
+  if (e.data?.type === 'unionScore') {
+    localStorage.setItem(e.data.key, e.data.value);
+    loadScores();
+  }
+});
+</script>
+</body>
+</html>

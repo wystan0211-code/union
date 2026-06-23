@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Pac-Man</title>
+<style>
+  body { margin:0; background:#010418; color:white; font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+         display:flex; flex-direction:column; align-items:center; justify-content:center;
+         height:100vh; text-align:center; gap:16px; }
+  .badge { width:80px; height:80px; background:#ffc70922; border:3px solid #ffc709;
+            border-radius:20px; display:flex; align-items:center; justify-content:center;
+            font-size:36px; }
+  h1 { font-size:24px; font-weight:800; color:#ffc709; margin:0; }
+  p { font-size:13px; color:#8899cc; max-width:280px; line-height:1.6; margin:0; }
+  .score { background:#0a1240; border:1px solid #ffc70944; border-radius:12px;
+            padding:12px 24px; font-size:14px; color:#ffc709; font-weight:700; }
+</style>
+</head>
+<body>
+  <div class="badge">🎮</div>
+  <h1>Pac-Man</h1>
+  <p>請將此檔案替換為<br>對話中最終版本的遊戲程式碼<br>並加入以下橋接程式</p>
+  <div class="score" id="scorebox">最高分：<span id="val">0</span></div>
+
+  <script>
+  // ── Union Score Bridge ─────────────────────────
+  // 在您的遊戲程式碼中，每當分數更新時呼叫：
+  // unionScore('pacmanHigh', yourScore);
+  function unionScore(key, value) {
+    localStorage.setItem(key, value);
+    document.getElementById('val').textContent = value;
+    try { window.parent.postMessage({ type: 'unionScore', key, value }, '*'); } catch(e) {}
+  }
+
+  // Show current saved score
+  const saved = localStorage.getItem('pacmanHigh') || '0';
+  document.getElementById('val').textContent = saved;
+  </script>
+</body>
+</html>
